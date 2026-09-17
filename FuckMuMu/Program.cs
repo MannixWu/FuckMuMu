@@ -1,7 +1,9 @@
 using System;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Threading;
+using System.Windows.Forms;
 
 namespace FuckMuMuApp
 {
@@ -11,12 +13,13 @@ namespace FuckMuMuApp
         {
             "MuMuNxMain",
             "MuMuNxDevice",
+            "MuMuNxService",
             "MuMuVMMHeadless",
             "MuMuVMMSVC"
         };
 
-        private static Process muMuProcess;
         private static ManualResetEvent exitEvent;
+        private static NotifyIcon trayIcon;
 
         private static int Main(string[] args)
         {
@@ -46,7 +49,7 @@ namespace FuckMuMuApp
             Console.CancelKeyPress += OnCancelKeyPress;
 
             Console.WriteLine("Starting MuMu: " + muMuPath + " " + muMuArgs);
-            muMuProcess = StartProcess(muMuPath, muMuArgs);
+            Process muMuProcess = StartProcess(muMuPath, muMuArgs);
 
             if (muMuProcess == null)
             {
@@ -61,9 +64,45 @@ namespace FuckMuMuApp
             }
 
             Console.WriteLine("MuMu started with PID " + muMuProcess.Id);
-            Console.WriteLine("Launcher is running. Press Ctrl+C to exit.");
-            exitEvent.WaitOne();
+
+            SetupTrayIcon();
+            Application.Run();
             return 0;
+        }
+
+        private static void SetupTrayIcon()
+        {
+            trayIcon = new NotifyIcon();
+
+            try
+            {
+                string exePath = Process.GetCurrentProcess().MainModule.FileName;
+                trayIcon.Icon = Icon.ExtractAssociatedIcon(exePath);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Failed to load icon: " + ex.Message);
+            }
+
+            trayIcon.Text = "FuckMuMu - 运行中";
+            trayIcon.Visible = true;
+
+            MenuItem exitItem = new MenuItem("退出", OnExit);
+            trayIcon.ContextMenu = new ContextMenu(new MenuItem[] { exitItem });
+
+            Console.WriteLine("Launcher is running. Check system tray for icon.");
+        }
+
+        private static void OnExit(object sender, EventArgs e)
+        {
+            if (trayIcon != null)
+            {
+                trayIcon.Visible = false;
+                trayIcon.Dispose();
+                trayIcon = null;
+            }
+            exitEvent.Set();
+            Application.Exit();
         }
 
         private static int RunWatcherMode(string[] args)
@@ -81,22 +120,67 @@ namespace FuckMuMuApp
                 return 1;
             }
 
-            Console.WriteLine("Watcher started. Monitoring launcher PID " + parentPid + ".");
+            Console.WriteLine("Watcher started. Monitoring launcher PID " + parentPid + " and MuMuNxDevice.");
 
+            Process launcher;
             try
             {
-                Process parent = Process.GetProcessById(parentPid);
-                parent.WaitForExit();
+                launcher = Process.GetProcessById(parentPid);
             }
             catch (ArgumentException)
             {
                 Console.WriteLine("Launcher process was not found; continuing cleanup.");
+                KillMuMuProcesses();
+                Thread.Sleep(3000);
+                KillMuMuProcesses();
+                Console.WriteLine("Watcher finished cleanup.");
+                return 0;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine("Watcher error while monitoring launcher: " + ex.Message);
+                Console.Error.WriteLine("Watcher error while getting launcher: " + ex.Message);
+                KillMuMuProcesses();
+                Thread.Sleep(3000);
+                KillMuMuProcesses();
+                Console.WriteLine("Watcher finished cleanup.");
+                return 0;
             }
 
+            DateTime graceEnd = DateTime.UtcNow.AddSeconds(10);
+            bool muMuFound = false;
+
+            while (!launcher.HasExited)
+            {
+                if (!muMuFound && DateTime.UtcNow >= graceEnd)
+                {
+                    Process[] procs = Process.GetProcessesByName("MuMuNxDevice");
+                    if (procs.Length > 0)
+                    {
+                        foreach (Process p in procs) p.Dispose();
+                        muMuFound = true;
+                        Console.WriteLine("MuMuNxDevice detected, now monitoring both processes.");
+                    }
+                }
+
+                if (muMuFound)
+                {
+                    Process[] current = Process.GetProcessesByName("MuMuNxDevice");
+                    if (current.Length == 0)
+                    {
+                        Console.WriteLine("MuMuNxDevice has exited.");
+                        foreach (Process p in current) p.Dispose();
+                        break;
+                    }
+                    foreach (Process p in current) p.Dispose();
+                }
+
+                Thread.Sleep(1000);
+            }
+
+            try { launcher.Dispose(); } catch { }
+
+            KillMuMuProcesses();
+            Thread.Sleep(3000);
             KillMuMuProcesses();
             Console.WriteLine("Watcher finished cleanup.");
             return 0;
@@ -130,6 +214,7 @@ namespace FuckMuMuApp
         {
             e.Cancel = true;
             exitEvent.Set();
+            Application.Exit();
         }
 
         private static Process StartProcess(string fileName, string arguments)
