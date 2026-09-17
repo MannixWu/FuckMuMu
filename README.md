@@ -14,9 +14,29 @@ MuMu 模拟器进程管理工具。启动 MuMu 并在退出时自动清理所有
 - `FuckMuMu\FuckMuMu.csproj`
 - `FuckMuMu\Program.cs`
 - `build.cmd`
-- `icon.ico` — 托盘及程序图标（多尺寸：16/32/48/64/128/256）
+- `icon.ico` — 编译时嵌入到 exe（运行时无需额外文件）
 
-## 构建
+## 下载与使用
+
+直接从 [Releases](https://github.com/MannixWu/FuckMuMu/releases) 下载 `FuckMuMu.exe`（单个可执行文件，图标已内嵌），放到 MuMu 的 shell 目录下即可使用，无需任何额外文件：
+
+```
+D:\Program Files\Netease\MuMu\nx_device\15.0\shell\FuckMuMu.exe
+```
+
+双击运行：
+
+```bat
+FuckMuMu.exe
+```
+
+如果想指定自定义 MuMu 启动路径：
+
+```bat
+FuckMuMu.exe "D:\Program Files\Netease\MuMu\nx_device\15.0\shell\MuMuNxDevice.exe"
+```
+
+## 从源码构建
 
 如果当前系统没有 .NET SDK，可直接运行：
 
@@ -26,32 +46,12 @@ build.cmd
 
 这会生成：
 
-- `FuckMuMu\bin\FuckMuMu.exe`
-- `FuckMuMu\bin\icon.ico`
+- `FuckMuMu\bin\FuckMuMu.exe`（图标已嵌入）
 
 如果安装了 .NET SDK，也可以使用：
 
 ```bat
 dotnet build FuckMuMu\FuckMuMu.csproj -c Release
-```
-
-## 运行方式
-
-将以下文件放在 MuMu 的 shell 目录下（如 `D:\Program Files\Netease\MuMu\nx_device\15.0\shell\`）：
-
-- `FuckMuMu.exe`
-- `icon.ico`
-
-然后运行：
-
-```bat
-FuckMuMu.exe
-```
-
-如果你想使用自定义 MuMu 启动路径：
-
-```bat
-FuckMuMu.exe "D:\Program Files\Netease\MuMu\nx_device\15.0\shell\MuMuNxDevice.exe"
 ```
 
 ### 托盘图标
